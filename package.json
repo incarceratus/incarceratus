@@ -1,0 +1,15 @@
+{
+  "name": "incarceratus",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "sy060109 <sy060109@tutamail.com>",
+  "license": "AGPL-3.0-only",
+  "devDependencies": {
+    "cspell": "^8.14.1"
+  }
+}

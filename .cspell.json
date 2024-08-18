@@ -1,0 +1,9 @@
+{
+    "words": [
+        "incarceratus"
+    ],
+    "ignorePaths": [
+        "node_modules",
+        "pnpm-lock.yaml"
+    ]
+}
