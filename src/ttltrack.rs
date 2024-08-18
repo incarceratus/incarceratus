@@ -1,40 +1,37 @@
-/*
-参考ttltrack 注释全部由copilot生成
- */
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 
-// 常量定义
-const TCP_CONNRECORD_KEY_LEN: usize = 37; // TCP连接记录键的长度
-const TCP_CLEANUP_INTERVAL_SEC: u64 = 30; // 清理间隔时间（秒）
+// Constants
+const TCP_CONNRECORD_KEY_LEN: usize = 37; // Length of the TCP connection record key
+const TCP_CLEANUP_INTERVAL_SEC: u64 = 30; // Cleanup interval in seconds
 
-// TCP连接跟踪信息结构体
+// TCP connection tracking information structure
 #[derive(Clone)]
 pub struct TcpConntrackInfo {
-    pub is_ipv6: u8, // 是否为IPv6
-    pub ttl: u8, // 生存时间
-    pub srcip: [u32; 4], // 源IP地址
-    pub srcport: u16, // 源端口
-    pub dstip: [u32; 4], // 目标IP地址
-    pub dstport: u16, // 目标端口
+    pub is_ipv6: u8, // Whether the connection is IPv6
+    pub ttl: u8, // Time to live
+    pub src_ip: [u32; 4], // Source IP address
+    pub src_port: u16, // Source port
+    pub dst_ip: [u32; 4], // Destination IP address
+    pub dst_port: u16, // Destination port
 }
 
-// TCP连接记录结构体
+// TCP connection record structure
 #[derive(Clone)]
 struct TcpConnrecord {
-    key: [u8; TCP_CONNRECORD_KEY_LEN], // 连接键
-    time: SystemTime, // 记录时间
-    ttl: u16, // 生存时间
+    key: [u8; TCP_CONNRECORD_KEY_LEN], // Connection key
+    time: SystemTime, // Record time
+    ttl: u16, // Time to live
 }
 
-// TCP连接跟踪结构体
+// TCP connection tracking structure
 pub struct TcpConntrack {
-    conntrack: HashMap<[u8; TCP_CONNRECORD_KEY_LEN], TcpConnrecord>, // 连接记录的哈希表
-    last_cleanup: SystemTime, // 上次清理时间
+    conntrack: HashMap<[u8; TCP_CONNRECORD_KEY_LEN], TcpConnrecord>, // HashMap of connection records
+    last_cleanup: SystemTime, // Last cleanup time
 }
 
 impl TcpConntrack {
-    // 创建新的TCP连接跟踪实例
+    // Create a new TCP connection tracking instance
     pub fn new() -> Self {
         Self {
             conntrack: HashMap::new(),
@@ -42,89 +39,89 @@ impl TcpConntrack {
         }
     }
 
-    // 填充键数据
+    // Fill key data
     fn fill_key_data(
         key: &mut [u8; TCP_CONNRECORD_KEY_LEN],
         is_ipv6: u8,
-        srcip: &[u32; 4],
-        dstip: &[u32; 4],
-        srcport: u16,
-        dstport: u16,
+        src_ip: &[u32; 4],
+        dst_ip: &[u32; 4],
+        src_port: u16,
+        dst_port: u16,
     ) {
         let mut offset = 0;
 
-        // 设置IP版本
+        // Set IP version
         key[offset] = if is_ipv6 != 0 { b'6' } else { b'4' };
         offset += 1;
 
-        // 填充IP地址和端口
+        // Fill IP addresses and ports
         if is_ipv6 != 0 {
-            key[offset..offset + 16].copy_from_slice(&srcip.iter().flat_map(|&x| x.to_be_bytes()).collect::<Vec<_>>());
+            key[offset..offset + 16].copy_from_slice(&src_ip.iter().flat_map(|&x| x.to_be_bytes()).collect::<Vec<_>>());
             offset += 16;
-            key[offset..offset + 16].copy_from_slice(&dstip.iter().flat_map(|&x| x.to_be_bytes()).collect::<Vec<_>>());
+            key[offset..offset + 16].copy_from_slice(&dst_ip.iter().flat_map(|&x| x.to_be_bytes()).collect::<Vec<_>>());
             offset += 16;
         } else {
-            key[offset..offset + 4].copy_from_slice(&srcip[0].to_be_bytes());
+            key[offset..offset + 4].copy_from_slice(&src_ip[0].to_be_bytes());
             offset += 4;
-            key[offset..offset + 4].copy_from_slice(&dstip[0].to_be_bytes());
+            key[offset..offset + 4].copy_from_slice(&dst_ip[0].to_be_bytes());
             offset += 4;
         }
 
-        key[offset..offset + 2].copy_from_slice(&srcport.to_be_bytes());
+        key[offset..offset + 2].copy_from_slice(&src_port.to_be_bytes());
         offset += 2;
-        key[offset..offset + 2].copy_from_slice(&dstport.to_be_bytes());
+        key[offset..offset + 2].copy_from_slice(&dst_port.to_be_bytes());
     }
 
-    // 从键中解析数据
+    // Parse data from key
     fn fill_data_from_key(
         key: &[u8; TCP_CONNRECORD_KEY_LEN],
         is_ipv6: &mut u8,
-        srcip: &mut [u32; 4],
-        dstip: &mut [u32; 4],
-        srcport: &mut u16,
-        dstport: &mut u16,
+        src_ip: &mut [u32; 4],
+        dst_ip: &mut [u32; 4],
+        src_port: &mut u16,
+        dst_port: &mut u16,
     ) {
         let mut offset = 0;
 
-        // 解析IP版本
+        // Parse IP version
         *is_ipv6 = if key[0] == b'6' { 1 } else { 0 };
         offset += 1;
 
-        // 解析IP地址和端口
+        // Parse IP addresses and ports
         if *is_ipv6 != 0 {
             for i in 0..4 {
-                srcip[i] = u32::from_be_bytes([key[offset], key[offset + 1], key[offset + 2], key[offset + 3]]);
+                src_ip[i] = u32::from_be_bytes([key[offset], key[offset + 1], key[offset + 2], key[offset + 3]]);
                 offset += 4;
             }
             for i in 0..4 {
-                dstip[i] = u32::from_be_bytes([key[offset], key[offset + 1], key[offset + 2], key[offset + 3]]);
+                dst_ip[i] = u32::from_be_bytes([key[offset], key[offset + 1], key[offset + 2], key[offset + 3]]);
                 offset += 4;
             }
         } else {
-            srcip[0] = u32::from_be_bytes([key[offset], key[offset + 1], key[offset + 2], key[offset + 3]]);
+            src_ip[0] = u32::from_be_bytes([key[offset], key[offset + 1], key[offset + 2], key[offset + 3]]);
             offset += 4;
-            dstip[0] = u32::from_be_bytes([key[offset], key[offset + 1], key[offset + 2], key[offset + 3]]);
+            dst_ip[0] = u32::from_be_bytes([key[offset], key[offset + 1], key[offset + 2], key[offset + 3]]);
             offset += 4;
         }
 
-        *srcport = u16::from_be_bytes([key[offset], key[offset + 1]]);
+        *src_port = u16::from_be_bytes([key[offset], key[offset + 1]]);
         offset += 2;
-        *dstport = u16::from_be_bytes([key[offset], key[offset + 1]]);
+        *dst_port = u16::from_be_bytes([key[offset], key[offset + 1]]);
     }
 
-    // 构造键
+    // Construct key
     fn construct_key(
-        srcip: &[u32; 4],
-        dstip: &[u32; 4],
-        srcport: u16,
-        dstport: u16,
+        src_ip: &[u32; 4],
+        dst_ip: &[u32; 4],
+        src_port: u16,
+        dst_port: u16,
         key: &mut [u8; TCP_CONNRECORD_KEY_LEN],
         is_ipv6: u8,
     ) {
-        Self::fill_key_data(key, is_ipv6, srcip, dstip, srcport, dstport);
+        Self::fill_key_data(key, is_ipv6, src_ip, dst_ip, src_port, dst_port);
     }
 
-    // 从键中解析连接记录并填充连接信息
+    // Deconstruct key and fill connection info
     fn deconstruct_key(
         key: &[u8; TCP_CONNRECORD_KEY_LEN],
         connrecord: &TcpConnrecord,
@@ -133,38 +130,38 @@ impl TcpConntrack {
         Self::fill_data_from_key(
             key,
             &mut conn_info.is_ipv6,
-            &mut conn_info.srcip,
-            &mut conn_info.dstip,
-            &mut conn_info.srcport,
-            &mut conn_info.dstport,
+            &mut conn_info.src_ip,
+            &mut conn_info.dst_ip,
+            &mut conn_info.src_port,
+            &mut conn_info.dst_port,
         );
         conn_info.ttl = connrecord.ttl as u8;
     }
 
-    // 检查并获取TCP连接记录
+    // Check and get TCP connection record
     fn check_get_tcp_conntrack_key(&self, key: &[u8; TCP_CONNRECORD_KEY_LEN]) -> Option<&TcpConnrecord> {
         self.conntrack.get(key)
     }
 
-    // 添加TCP连接记录
+    // Add TCP connection record
     fn add_tcp_conntrack(
         &mut self,
-        srcip: &[u32; 4],
-        dstip: &[u32; 4],
-        srcport: u16,
-        dstport: u16,
+        src_ip: &[u32; 4],
+        dst_ip: &[u32; 4],
+        src_port: u16,
+        dst_port: u16,
         is_ipv6: u8,
         ttl: u8,
     ) -> bool {
-        // 检查IP地址和端口是否有效
-        if srcip.iter().all(|&x| x == 0) || dstip.iter().all(|&x| x == 0) || srcport == 0 || dstport == 0 {
+        // Check if IP addresses and ports are valid
+        if src_ip.iter().all(|&x| x == 0) || dst_ip.iter().all(|&x| x == 0) || src_port == 0 || dst_port == 0 {
             return false;
         }
 
         let mut key = [0u8; TCP_CONNRECORD_KEY_LEN];
-        Self::construct_key(srcip, dstip, srcport, dstport, &mut key, is_ipv6);
+        Self::construct_key(src_ip, dst_ip, src_port, dst_port, &mut key, is_ipv6);
 
-        // 如果记录不存在，则添加新记录
+        // If record does not exist, add new record
         if self.check_get_tcp_conntrack_key(&key).is_none() {
             let connrecord = TcpConnrecord {
                 key,
@@ -178,7 +175,7 @@ impl TcpConntrack {
         }
     }
 
-    // 清理过期连接记录
+    // Cleanup expired connection records
     fn tcp_cleanup(&mut self) {
         let now = SystemTime::now();
         if now.duration_since(self.last_cleanup).unwrap_or(Duration::new(0, 0)).as_secs() >= TCP_CLEANUP_INTERVAL_SEC {
@@ -189,34 +186,34 @@ impl TcpConntrack {
         }
     }
 
-    // 处理传入连接
+    // Handle incoming connection
     pub fn tcp_handle_incoming(
         &mut self,
-        srcip: [u32; 4],
-        dstip: [u32; 4],
-        srcport: u16,
-        dstport: u16,
+        src_ip: [u32; 4],
+        dst_ip: [u32; 4],
+        src_port: u16,
+        dst_port: u16,
         is_ipv6: u8,
         ttl: u8,
     ) -> bool {
         self.tcp_cleanup();
-        self.add_tcp_conntrack(&srcip, &dstip, srcport, dstport, is_ipv6, ttl)
+        self.add_tcp_conntrack(&src_ip, &dst_ip, src_port, dst_port, is_ipv6, ttl)
     }
 
-    // 处理传出连接
+    // Handle outgoing connection
     pub fn tcp_handle_outgoing(
         &mut self,
-        srcip: &[u32; 4],
-        dstip: &[u32; 4],
-        srcport: u16,
-        dstport: u16,
+        src_ip: &[u32; 4],
+        dst_ip: &[u32; 4],
+        src_port: u16,
+        dst_port: u16,
         conn_info: &mut TcpConntrackInfo,
         is_ipv6: u8,
     ) -> bool {
         let mut key = [0u8; TCP_CONNRECORD_KEY_LEN];
-        Self::construct_key(dstip, srcip, dstport, srcport, &mut key, is_ipv6);
+        Self::construct_key(dst_ip, src_ip, dst_port, src_port, &mut key, is_ipv6);
 
-        // 如果记录存在，则解析并移除记录
+        // If record exists, deconstruct and remove record
         if let Some(connrecord) = self.check_get_tcp_conntrack_key(&key) {
             Self::deconstruct_key(&key, connrecord, conn_info);
             self.conntrack.remove(&key);
@@ -227,13 +224,13 @@ impl TcpConntrack {
     }
 }
 
-// 计算伪造包的TTL值
+// Calculate TTL for fake packet
 pub fn tcp_get_auto_ttl(
     ttl: u8,
-    autottl1: u8,
-    autottl2: u8,
-    minhops: u8,
-    maxttl: u8,
+    auto_ttl_1: u8,
+    auto_ttl_2: u8,
+    min_hops: u8,
+    max_ttl: u8,
 ) -> u8 {
     let nhops = if ttl > 98 && ttl < 128 {
         128 - ttl
@@ -243,26 +240,25 @@ pub fn tcp_get_auto_ttl(
         return 0;
     };
 
-    if nhops <= autottl1 || nhops < minhops {
+    if nhops <= auto_ttl_1 || nhops < min_hops {
         return 0;
     }
 
-    let mut ttl_of_fake_packet = nhops - autottl2;
-    if ttl_of_fake_packet < autottl2 && nhops <= 9 {
-        ttl_of_fake_packet = nhops - autottl1 - ((autottl2 - autottl1) as f32 * (nhops as f32 / 10.0)).trunc() as u8;
+    let mut ttl_of_fake_packet = nhops - auto_ttl_2;
+    if ttl_of_fake_packet < auto_ttl_2 && nhops <= 9 {
+        ttl_of_fake_packet = nhops - auto_ttl_1 - ((auto_ttl_2 - auto_ttl_1) as f32 * (nhops as f32 / 10.0)).trunc() as u8;
     }
 
-    if maxttl != 0 && ttl_of_fake_packet > maxttl {
-        ttl_of_fake_packet = maxttl;
+    if max_ttl != 0 && ttl_of_fake_packet > max_ttl {
+        ttl_of_fake_packet = max_ttl;
     }
 
     ttl_of_fake_packet
 }
 
-// 新增的宏转换为函数
+// Set HTTP fragment size option
 static mut HTTP_FRAGMENT_SIZE: Option<u32> = None;
 
-// 设置HTTP片段大小选项
 pub fn set_http_fragment_size_option(fragment_size: u32) {
     unsafe {
         match HTTP_FRAGMENT_SIZE {
@@ -278,7 +274,7 @@ pub fn set_http_fragment_size_option(fragment_size: u32) {
     }
 }
 
-// 处理传出连接并解析包
+// Handle outgoing connection and parse packet
 pub fn tcp_handle_outgoing_ttl_parse_packet_if(
     conntrack: &mut TcpConntrack,
     packet_v4: bool,
@@ -291,7 +287,7 @@ pub fn tcp_handle_outgoing_ttl_parse_packet_if(
     dst_addr_v6: Option<&[u32; 4]>,
     tcp_conn_info: &mut TcpConntrackInfo,
     do_auto_ttl: bool,
-    ttl_min_nhops: u8,
+    ttl_min_hops: u8,
     auto_ttl_1: u8,
     auto_ttl_2: u8,
     auto_ttl_max: u8,
@@ -317,7 +313,7 @@ pub fn tcp_handle_outgoing_ttl_parse_packet_if(
                 tcp_conn_info.ttl,
                 auto_ttl_1,
                 auto_ttl_2,
-                ttl_min_nhops,
+                ttl_min_hops,
                 auto_ttl_max,
             );
             if do_tcp_verb {
@@ -326,8 +322,8 @@ pub fn tcp_handle_outgoing_ttl_parse_packet_if(
                     tcp_conn_info.ttl, ttl_of_fake_packet
                 );
             }
-        } else if ttl_min_nhops > 0 {
-            if !tcp_get_auto_ttl(tcp_conn_info.ttl, 0, 0, ttl_min_nhops, 0) {
+        } else if ttl_min_hops > 0 {
+            if tcp_get_auto_ttl(tcp_conn_info.ttl, 0, 0, ttl_min_hops, 0) == 0 {
                 return false;
             }
         }
@@ -337,7 +333,7 @@ pub fn tcp_handle_outgoing_ttl_parse_packet_if(
     }
 }
 
-// 处理传出伪造包
+// Handle outgoing fake packet
 pub fn tcp_handle_outgoing_fake_packet<F>(
     conntrack: &mut TcpConntrack,
     func: F,
@@ -351,7 +347,7 @@ pub fn tcp_handle_outgoing_fake_packet<F>(
     dst_addr_v6: Option<&[u32; 4]>,
     tcp_conn_info: &mut TcpConntrackInfo,
     do_auto_ttl: bool,
-    ttl_min_nhops: u8,
+    ttl_min_hops: u8,
     auto_ttl_1: u8,
     auto_ttl_2: u8,
     auto_ttl_max: u8,
@@ -367,7 +363,7 @@ pub fn tcp_handle_outgoing_fake_packet<F>(
     F: Fn(&str, &str, &[u8], usize, bool, u8, bool, bool),
 {
     let mut should_send_fake = true;
-    if do_auto_ttl || ttl_min_nhops > 0 {
+    if do_auto_ttl || ttl_min_hops > 0 {
         if tcp_handle_outgoing_ttl_parse_packet_if(
             conntrack,
             packet_v4,
@@ -380,7 +376,7 @@ pub fn tcp_handle_outgoing_fake_packet<F>(
             dst_addr_v6,
             tcp_conn_info,
             do_auto_ttl,
-            ttl_min_nhops,
+            ttl_min_hops,
             auto_ttl_1,
             auto_ttl_2,
             auto_ttl_max,
@@ -391,7 +387,7 @@ pub fn tcp_handle_outgoing_fake_packet<F>(
                     tcp_conn_info.ttl,
                     auto_ttl_1,
                     auto_ttl_2,
-                    ttl_min_nhops,
+                    ttl_min_hops,
                     auto_ttl_max,
                 );
                 if do_tcp_verb {
@@ -400,8 +396,8 @@ pub fn tcp_handle_outgoing_fake_packet<F>(
                         tcp_conn_info.ttl, ttl_of_fake_packet
                     );
                 }
-            } else if ttl_min_nhops > 0 {
-                if !tcp_get_auto_ttl(tcp_conn_info.ttl, 0, 0, ttl_min_nhops, 0) {
+            } else if ttl_min_hops > 0 {
+                if tcp_get_auto_ttl(tcp_conn_info.ttl, 0, 0, ttl_min_hops, 0) == 0 {
                     should_send_fake = false;
                 }
             }
@@ -418,5 +414,81 @@ pub fn tcp_handle_outgoing_fake_packet<F>(
             do_wrong_chksum,
             do_wrong_seq,
         );
+    }
+}
+
+// Unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_add_tcp_conntrack() {
+        let mut conntrack = TcpConntrack::new();
+        let src_ip = [192, 168, 1, 1];
+        let dst_ip = [192, 168, 1, 2];
+        let src_port = 12345;
+        let dst_port = 80;
+        let is_ipv6 = 0;
+        let ttl = 64;
+
+        assert!(conntrack.add_tcp_conntrack(&src_ip, &dst_ip, src_port, dst_port, is_ipv6, ttl));
+    }
+
+    #[test]
+    fn test_tcp_handle_incoming() {
+        let mut conntrack = TcpConntrack::new();
+        let src_ip = [192, 168, 1, 1];
+        let dst_ip = [192, 168, 1, 2];
+        let src_port = 12345;
+        let dst_port = 80;
+        let is_ipv6 = 0;
+        let ttl = 64;
+
+        assert!(conntrack.tcp_handle_incoming(src_ip, dst_ip, src_port, dst_port, is_ipv6, ttl));
+    }
+
+    #[test]
+    fn test_tcp_handle_outgoing() {
+        let mut conntrack = TcpConntrack::new();
+        let src_ip = [192, 168, 1, 1];
+        let dst_ip = [192, 168, 1, 2];
+        let src_port = 12345;
+        let dst_port = 80;
+        let is_ipv6 = 0;
+        let ttl = 64;
+
+        conntrack.add_tcp_conntrack(&src_ip, &dst_ip, src_port, dst_port, is_ipv6, ttl);
+
+        let mut conn_info = TcpConntrackInfo {
+            is_ipv6,
+            ttl,
+            src_ip: [0; 4],
+            src_port: 0,
+            dst_ip: [0; 4],
+            dst_port: 0,
+        };
+
+        assert!(conntrack.tcp_handle_outgoing(&dst_ip, &src_ip, dst_port, src_port, &mut conn_info, is_ipv6));
+    }
+
+    #[test]
+    fn test_tcp_get_auto_ttl() {
+        let ttl = 100;
+        let auto_ttl_1 = 2;
+        let auto_ttl_2 = 1;
+        let min_hops = 1;
+        let max_ttl = 64;
+
+        let result = tcp_get_auto_ttl(ttl, auto_ttl_1, auto_ttl_2, min_hops, max_ttl);
+        assert_eq!(result, 27);
+    }
+
+    #[test]
+    fn test_set_http_fragment_size_option() {
+        set_http_fragment_size_option(1500);
+        unsafe {
+            assert_eq!(HTTP_FRAGMENT_SIZE, Some(1500));
+        }
     }
 }
