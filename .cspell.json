@@ -1,6 +1,7 @@
 {
     "words": [
-        "incarceratus"
+        "incarceratus",
+        "trunc"
     ],
     "ignorePaths": [
         "node_modules",
