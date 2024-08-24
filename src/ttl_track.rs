@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::time::{Duration, SystemTime};
 use std::sync::RwLock;
+use std::time::{Duration, SystemTime};
 
 // Constants
 const TCP_CONN_RECORD_KEY_LEN: usize = 37; // Length of the TCP connection record key
@@ -548,7 +548,7 @@ mod tests {
 
         // Acquire a read lock to check the value
         let fragment_size = HTTP_FRAGMENT_SIZE.read().unwrap();
-        
+
         // Assert that the HTTP fragment size is 1500
         assert_eq!(*fragment_size, Some(1500));
     }
