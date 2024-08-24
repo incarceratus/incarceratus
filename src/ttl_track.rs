@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
+use std::sync::RwLock;
 
 // Constants
 const TCP_CONN_RECORD_KEY_LEN: usize = 37; // Length of the TCP connection record key
@@ -298,20 +299,24 @@ pub fn tcp_get_auto_ttl(ttl: u8, auto_ttl_1: u8, auto_ttl_2: u8, min_hops: u8, m
 }
 
 // Set HTTP fragment size option
-static mut HTTP_FRAGMENT_SIZE: Option<u32> = None;
+lazy_static::lazy_static! {
+    static ref HTTP_FRAGMENT_SIZE: RwLock<Option<u32>> = RwLock::new(None);
+}
 
 pub fn set_http_fragment_size_option(fragment_size: u32) {
-    unsafe {
-        match HTTP_FRAGMENT_SIZE {
-            None => HTTP_FRAGMENT_SIZE = Some(fragment_size),
-            Some(size) if size != fragment_size => {
-                println!(
-                    "WARNING: HTTP fragment size is already set to {}, not changing.",
-                    size
-                );
-            }
-            _ => {}
+    let mut fragment_size_option = HTTP_FRAGMENT_SIZE.write().unwrap();
+
+    match *fragment_size_option {
+        None => {
+            *fragment_size_option = Some(fragment_size);
         }
+        Some(size) if size != fragment_size => {
+            println!(
+                "WARNING: HTTP fragment size is already set to {}, not changing.",
+                size
+            );
+        }
+        _ => {}
     }
 }
 
@@ -538,9 +543,13 @@ mod tests {
 
     #[test]
     fn test_set_http_fragment_size_option() {
+        // Set HTTP fragment size to 1500
         set_http_fragment_size_option(1500);
-        unsafe {
-            assert_eq!(HTTP_FRAGMENT_SIZE, Some(1500));
-        }
+
+        // Acquire a read lock to check the value
+        let fragment_size = HTTP_FRAGMENT_SIZE.read().unwrap();
+        
+        // Assert that the HTTP fragment size is 1500
+        assert_eq!(*fragment_size, Some(1500));
     }
 }
